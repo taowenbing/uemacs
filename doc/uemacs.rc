@@ -1,0 +1,405 @@
+;	~/.emacsrc
+;
+;	Startup file for MicroEMACS 3.9 and uEmacs/PK 4.0
+;	This file is executed every time the editor is entered.
+
+set $discmd "FALSE"
+set $overlap 2
+
+bind-to-key execute-macro		FNd ;(F12)
+bind-to-key execute-command-line	M-!
+bind-to-key execute-file		M-@
+bind-to-key execute-buffer		M-#
+bind-to-key newline			^J
+bind-to-key newline-and-indent		^M
+bind-to-key goto-matching-fence		M-.
+;unbind-key ^XC	;i-shell
+unbind-key ^XD	;suspend-emacs
+
+; --------------------------------------------------------------------------
+
+store-procedure	file-hook
+	set %make "ERROR"
+	set %rctmp &sin $cbufname "."
+	!if &equ %rctmp 0
+		!return
+	!endif
+	set %exe &lef $cbufname &sub %rctmp 1 ;when execute-file -> bug
+	set %rctmp &mid $cbufname &add %rctmp 1 5
+;	!if &or &seq %rctmp "c" &seq %rctmp "f90"
+;		;add-mode "cmode"
+;		set %make "bmake"
+;		!return
+;	!endif
+	!if &seq %rctmp "pl"
+		set %make "perl "
+		!return
+	!endif
+	set %make "bmake"
+!endm
+
+set %make ""
+30	store-macro
+	!if &seq %make ""
+		run file-hook
+	!endif
+	!if &seq %make "ERROR"
+		!return
+	!endif
+	!if &or &seq %make "bmake" &seq %make "make"
+		execute-program %make
+	!else
+		execute-program &cat %make $cfname
+	!endif
+!endm
+bind-to-key	execute-macro-30	FNR ;(F3)
+
+set %exe ""
+19	store-macro
+	execute-program &cat "./" %exe
+!endm
+bind-to-key	execute-macro-19	FNQ ;(F2)
+
+store-procedure	set-mark-1
+	set %mktmp $curcol
+	set %mktmp1 $curline
+!endm
+
+31	store-macro	;set-mark-1
+	run set-mark-1
+!endm
+bind-to-key	execute-macro-31	FN` ;(F9)
+
+store-procedure	goto-mark-1
+	%mktmp1 goto-line
+	beginning-of-line
+	!while &les $curcol %mktmp
+		1 forward-character
+	!endwhile
+!endm
+
+32	store-macro	;goto-mark-1
+	run goto-mark-1
+!endm
+bind-to-key	execute-macro-32	FNa ;(F10)
+
+store-procedure	clear-buffer
+	set $discmd "FALSE"
+	end-of-file
+	set-mark
+	beginning-of-file
+	kill-region
+	unmark-buffer
+	set $discmd "TRUE"
+!endm
+
+set %lastbuf ""
+25	store-macro	;previous buffer
+	set %lastbuf $cbufname
+	0 next-buffer
+!endm
+bind-to-key	execute-macro-25	^XC
+
+33	store-macro	;next buffer
+	set %lastbuf $cbufname
+	next-buffer
+!endm
+bind-to-key	execute-macro-33	^XX
+
+34	store-macro	;select buffer
+	set %rctmp @"Use buffer: "
+	!if &seq %rctmp "ERROR"		;^G
+		!return
+	!endif
+	!if &seq %rctmp ""
+		!if &seq %lastbuf ""
+			!return
+		!else
+			set %rctmp $cbufname
+			select-buffer %lastbuf
+			set %lastbuf %rctmp
+		!endif
+	!else
+		set %lastbuf $cbufname
+		select-buffer %rctmp
+	!endif
+!endm
+bind-to-key	execute-macro-34	^XB
+
+set %fmtpl "perl fmt.pl "
+store-procedure	fmt-line	;line format operation
+	kill-region
+	set %rctmp $cbufname
+	select-buffer "_em_tmpf"
+	yank
+	write-file "_em_tmpf"
+	select-buffer %rctmp
+	delete-buffer "_em_tmpf"
+	shell-command &cat %fmtpl " _em_tmpf > _em_tmpf1"
+	insert-file _em_tmpf1
+	1 delete-previous-character
+	shell-command "rm -f _em_tmpf*"
+!endm
+
+set %fmt ""
+store-procedure	filter-region
+	set %rctmp @"#"
+	!if &seq %rctmp "ERROR"
+		!return
+	!endif
+	!if &seq %rctmp ""
+		!if &seq %fmt ""
+			!return
+		!endif
+	!else
+		set %fmt %rctmp
+	!endif
+	kill-region
+	set %rctmp $cbufname
+	select-buffer "*_EM_FMT_*"
+	yank
+	unmark-buffer
+	filter-buffer %fmt
+	run clear-buffer
+	select-buffer %rctmp
+	delete-buffer "*_EM_FMT_*"
+	yank
+	1 delete-previous-character
+!endm
+
+40	store-macro	;filter region
+	run filter-region
+!endm
+bind-to-key	execute-macro-40	M-^\
+
+35	store-macro	;region operation
+	!if &seq $cbufname "*_EM_R_*"
+		run clear-buffer
+		select-buffer %oldbuf
+		delete-buffer "*_EM_R_*"
+		yank
+		1 delete-previous-character
+	!else	
+		kill-region
+		set %oldbuf $cbufname
+		select-buffer "*_EM_R_*"
+		yank
+		beginning-of-file
+	!endif
+!endm
+bind-to-key	execute-macro-35	M-\
+
+36	store-macro	;column insert
+	set %rctmp1 @"insert string: "
+	!if &or &seq %rctmp1 "" &seq %rctmp1 "ERROR"
+		!return
+	!endif
+	set %lastline $curline
+	exchange-point-and-mark
+	set %rctmp $curcol
+	!while &not &gre $curline %lastline
+		end-of-line
+		!if &not &gre %rctmp $curcol
+			beginning-of-line
+			!while &les $curcol %rctmp
+				1 forward-character
+			!endwhile
+			insert-string %rctmp1
+		!endif
+		next-line
+	!endwhile
+!endm
+bind-to-key	execute-macro-36	M-I
+
+37	store-macro	;column delete
+	set %lastline $curline
+	set %rctmp $curcol
+	exchange-point-and-mark
+	set %firstcol $curcol
+	!while &not &gre $curline %lastline
+		end-of-line
+		!if &not &gre %rctmp $curcol
+			beginning-of-line
+			!while &les $curcol %rctmp
+				1 forward-character
+			!endwhile
+			!while &gre $curcol %firstcol
+				1 delete-previous-character
+			!endwhile
+		!endif
+		next-line
+	!endwhile
+!endm
+bind-to-key	execute-macro-37	M-^I
+
+38	store-macro	;goto top|middle|bottom
+	set %rctmp &div &add $wline 1 2
+	!if &equ $cwline $wline
+		set %rctmp 1
+	!else
+		!if &not &les $cwline %rctmp
+			set %rctmp $wline
+		!endif
+	!endif
+	set %rctmp &sub %rctmp $cwline
+	!if &les %rctmp 0
+		set %rctmp &neg %rctmp
+		%rctmp previous-line
+	!else
+		%rctmp next-line
+	!endif
+	beginning-of-line
+!endm
+bind-to-key	execute-macro-38	M-E
+
+store-procedure	find-nonspace
+	!if &equ %rctmp 0	;forward
+		!while &or &equ $curchar 32 &equ $curchar 9
+			1 forward-character
+		!endwhile
+	!else			;backward
+		!while &or &equ $curchar 32 &equ $curchar 9
+			1 backward-character
+		!endwhile
+	!endif
+!endm
+
+39	store-macro	;just one space
+	!if &or &equ $curchar 32 &equ $curchar 9
+		set $discmd "FALSE"
+		set %rctmp 0
+		set-mark
+		run find-nonspace
+		exchange-point-and-mark
+		set %rctmp 1
+		run find-nonspace
+		1 forward-character
+		kill-region
+		1 insert-space
+		set $discmd "TRUE"
+	!endif
+!endm
+bind-to-key	execute-macro-39	^XT
+
+;store-procedure kill-fence
+;	set $discmd "FALSE"
+;	set-mark
+;	set %lastline $curline
+;	set %firstcol $curcol
+;	goto-matching-fence
+;	!if &equ %lastline $curline
+;		!if &gre $curcol %firstcol
+;			exchange-point-and-mark
+;		!endif
+;	!else
+;		!if &gre $curline %lastline
+;			exchange-point-and-mark
+;		!endif
+;	!endif
+;	1 forward-character
+;	kill-region
+;	set $discmd "TRUE"
+;!endm
+
+set %tabwidth 4
+20	store-macro
+	set %rctmp @"tabwidth: "
+	!if &or &seq %rctmp "" &seq %rctmp "ERROR"
+		!return
+	!else
+		!if &equ %rctmp 0
+			set %tabwidth 4
+		!else
+			set %tabwidth %rctmp
+		!endif
+	!endif
+	%rctmp handle-tab
+!endm
+bind-to-key	execute-macro-20	FNP ;(F1)
+
+29	store-macro	;delete tabwidth spaces
+	%tabwidth delete-previous-character
+!endm
+bind-to-key	execute-macro-29	M-H
+
+21	store-macro	;forward nonspace
+	set %rctmp 0
+	run find-nonspace
+!endm
+bind-to-key	execute-macro-21	^X]
+
+22	store-macro	;backward nonspace
+	set %rctmp 1
+	run find-nonspace
+!endm
+bind-to-key	execute-macro-22	^X[
+
+23	store-macro	;set mark
+	set %rctmp @"mark: "
+	!if &or &seq %rctmp "" &seq %rctmp "ERROR"
+		!return
+	!endif
+	set %rctmp &cat "%MRK-" %rctmp
+	set &ind %rctmp $curline
+!endm
+bind-to-key	execute-macro-23	FNX ;(F7)
+
+24	store-macro	;goto mark
+	set %rctmp @"goto: "
+	!if &or &seq %rctmp "" &seq %rctmp "ERROR"
+		!return
+	!endif
+	set %rctmp &cat "MRK-" %rctmp
+	set %rctmp &ind %rctmp
+	%rctmp goto-line
+!endm
+bind-to-key	execute-macro-24	FNY ;(F8)
+
+26	store-macro	;copy to file
+	set %rctmp @"Write file: "
+	!if &or &seq %rctmp "" &seq %rctmp "ERROR"
+		!return
+	!endif
+	copy-region
+	set %rctmp1 $cbufname
+	select-buffer "*_EM_CP_*"
+	yank
+	1 delete-previous-character
+	write-file %rctmp
+	select-buffer %rctmp1
+	delete-buffer "*_EM_CP_*"
+!endm
+bind-to-key	execute-macro-26	^XI
+
+27	store-macro	;execute macro on region
+	set %lastline $curline
+	exchange-point-and-mark
+	set %rctmp &add &sub %lastline $curline 1
+	%rctmp execute-macro
+!endm
+bind-to-key	execute-macro-27	FNS ;(F4)
+
+28	store-macro	;delete buffer
+	set %rctmp @"Kill buffer: "
+	!if &seq %rctmp "ERROR"
+		!return
+	!endif
+	!if &seq %rctmp ""
+		set %lastbuf $cbufname
+		next-buffer
+		!if &not &seq %lastbuf $cbufname
+			delete-buffer %lastbuf
+			set %lastbuf ""
+		!endif
+	!else
+		delete-buffer %rctmp
+	!endif			
+!endm
+bind-to-key	execute-macro-28	^XK
+
+; --------------------------------------------------------------------------
+
+;!force execute-file &cat $HOME "/.config/uemacs.rc"
+
+add-global-mode "utf-8"
+set $discmd "TRUE"
